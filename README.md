@@ -10,7 +10,7 @@ I have used the picamera2 module to use the functionalities of the Raspberry Pi 
 
 3. Any field where real-time surveillance is required.
 
-#Setup
+# Setup
 your_project/
 │
 ├── app.py
@@ -20,11 +20,14 @@ your_project/
     └── style.css
 Recorded videos will be added to the static folder once the stop recording button is hit.
 
-#Run
+# Run
 1. Run app.py
 2. click on the generated link.
 
-#clone this repository 
-~git clone
+# Clone this repository 
+Go to terminal of your IDE or Git Bash and write :
+git clone https://github.com/james007-codes/NextVision.git
+
+
 
 
