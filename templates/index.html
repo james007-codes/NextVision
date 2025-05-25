@@ -1,1 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NextVision v3.1.7</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.js"></script>
+</head>
+<body>
+    <div class="cyberpunk-container">
+        <header class="cyberpunk-header">
+            <h1 class="cyberpunk glitched">NextVision <span class="version">v3.1.7</span></h1>
+            <div class="scanline"></div>
+        </header>
 
+        <main class="cyberpunk-main">
+            <section class="cyberpunk-panel recording-panel">
+                <h2 class="cyberpunk-title">> VIDEO CAPTURE MODULE</h2>
+                <div class="cyberpunk-status" id="recordingStatus">
+                    STATUS: <span class="status-text">{% if recording %}ACTIVE{% else %}STANDBY{% endif %}</span>
+                </div>
+                <div class="cyberpunk-buttons">
+                    <button id="buttonStart" onclick="startRecording()" {% if recording %}disabled{% endif %} class="cyberpunk-button">INIT CAPTURE</button>
+                    <button id="buttonStop" onclick="stopRecording()" {% if not recording %}disabled{% endif %} class="cyberpunk-button">TERMINATE</button>
+                </div>
+            </section>
+
+            <section class="cyberpunk-panel stream-panel">
+                <h2 class="cyberpunk-title">> LIVE FEED</h2>
+                <div class="cyberpunk-status" id="streamingStatus">STATUS: <span class="status-text">OFFLINE</span></div>
+                <img id="video" src="" alt="Video Feed" class="cyberpunk-display">
+                <div class="cyberpunk-buttons">
+                    <button id="startStream" class="cyberpunk-button">ENABLE STREAM</button>
+                    <button id="stopStream" class="cyberpunk-button">KILL FEED</button>
+                </div>
+            </section>
+
+            <section class="cyberpunk-panel archive-panel">
+                <h2 class="cyberpunk-title">> DATA ARCHIVE</h2>
+                <div class="cyberpunk-video-list">
+                    {% for video in video_files %}
+                        <div class="cyberpunk-video-item">
+                            <h3 class="cyberpunk-filename">{{ video }}</h3>
+                            <video controls class="cyberpunk-display">
+                                <source src="{{ url_for('static', filename=video) }}" type="video/mp4">
+                                TERMINAL ERROR: VIDEO FORMAT NOT SUPPORTED
+                            </video>
+                            
+                            <div class="cyberpunk-comment-section">
+                                <h4 class="cyberpunk-subtitle">> USER COMMENTS:</h4>
+                                <div id="comments-{{ video }}" class="cyberpunk-comments">
+                                    {% for comment in comments.get(video, []) %}
+                                        <div class="cyberpunk-comment">{{ comment }}</div>
+                                    {% endfor %}
+                                </div>
+                                <input type="text" id="comment-input-{{ video }}" placeholder="ENTER COMMENT..." class="cyberpunk-input">
+                                <button onclick="submitComment('{{ video }}')" class="cyberpunk-button">SUBMIT</button>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <div class="cyberpunk-overlay"></div>
+    <div class="cyberpunk-grid"></div>
+
+    <script>
+        const socket = io();
+        let isStreaming = false;
+
+        // Handle video frames from the server
+        socket.on('video_frame', function(data) {
+            const img = document.getElementById('video');
+            // Convert ArrayBuffer to base64
+            const base64String = arrayBufferToBase64(data.image);
+            img.src = 'data:image/jpeg;base64,' + base64String;
+            img.classList.add('active-feed');
+        });
+
+        // Helper function to convert ArrayBuffer to base64
+        function arrayBufferToBase64(buffer) {
+            let binary = '';
+            const bytes = new Uint8Array(buffer);
+            for (let i = 0; i < bytes.byteLength; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            return window.btoa(binary);
+        }
+
+        // Start streaming button
+        document.getElementById('startStream').onclick = function() {
+            if (!isStreaming) {
+                socket.emit('start_stream');
+                isStreaming = true;
+                document.getElementById('streamingStatus').innerHTML = 'STATUS: <span class="status-text active">TRANSMITTING</span>';
+                this.disabled = true;
+                document.getElementById('stopStream').disabled = false;
+            }
+        };
+
+        // Stop streaming button
+        document.getElementById('stopStream').onclick = function() {
+            if (isStreaming) {
+                socket.emit('stop_stream');
+                isStreaming = false;
+                document.getElementById('streamingStatus').innerHTML = 'STATUS: <span class="status-text">OFFLINE</span>';
+                this.disabled = true;
+                document.getElementById('startStream').disabled = false;
+                document.getElementById('video').classList.remove('active-feed');
+            }
+        };
+
+        // Handle new video notification
+        socket.on('new_video', function(data) {
+            const video = document.createElement('video');
+            video.src = 'static/' + data.filename;
+            
+            video.onloadeddata = function() {
+                location.reload();
+            };
+            
+            video.onerror = function() {
+                alert('CORRUPTED DATA: VIDEO FILE INTEGRITY COMPROMISED');
+            };
+            
+            setTimeout(() => {
+                if (!video.readyState) {
+                    alert('DATA TRANSFER FAILURE: UNABLE TO LOAD VIDEO ASSET');
+                }
+            }, 3000);
+        });
+
+        function startRecording() {
+            fetch('/start').then(() => {
+                document.getElementById('buttonStart').disabled = true;
+                document.getElementById('buttonStop').disabled = false;
+                document.getElementById('recordingStatus').innerHTML = 'STATUS: <span class="status-text active">CAPTURING</span>';
+            });
+        }
+
+        function stopRecording() {
+            fetch('/stop').then(() => {
+                document.getElementById('buttonStart').disabled = false;
+                document.getElementById('buttonStop').disabled = true;
+                document.getElementById('recordingStatus').innerHTML = 'STATUS: <span class="status-text">STANDBY</span>';
+                location.reload();
+            });
+        }
+
+        function submitComment(video) {
+            const commentInput = document.getElementById(comment-input-${video});
+            const comment = commentInput.value;
+
+            if (comment) {
+                fetch('/submit_comment', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ video: video, comment: comment })
+                }).then(response => {
+                    if (response.ok) {
+                        const commentsList = document.getElementById(comments-${video});
+                        const newComment = document.createElement('div');
+                        newComment.className = 'cyberpunk-comment';
+                        newComment.textContent = comment;
+                        commentsList.appendChild(newComment);
+                        commentInput.value = '';
+                    }
+                });
+            }
+        }
+
+        // Add cyberpunk terminal effect to inputs
+        document.querySelectorAll('.cyberpunk-input').forEach(input => {
+            input.addEventListener('focus', function() {
+                this.parentNode.classList.add('active-terminal');
+            });
+            input.addEventListener('blur', function() {
+                this.parentNode.classList.remove('active-terminal');
+            });
+        });
+    </script>
+</body>
+</html>
